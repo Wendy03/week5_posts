@@ -1,68 +1,80 @@
 const Post = require('../models/posts');
+const appError = require('../service/appError');
+const handleErrorAsync = require('../service/handleErrorAsync');
+const handleSuccess = require('../service/handleSuccess');
 
 const posts = {
-  async getPosts(req, res) {
+  getPosts: handleErrorAsync(async (req, res) => {
     const { keyword, sortby } = req.query;
     const search =
       keyword !== undefined ? { content: new RegExp(`${keyword}`) } : {};
-    const sort = sortby === 'old' ? 'createdAt' : '-createdAt';
+    const sort = sortby === 'asc' ? 'createdAt' : '-createdAt';
     const posts = await Post.find(search)
       .populate({
         path: 'user',
         select: 'name photo ',
       })
       .sort(sort);
-    res.status(200).json({ status: 'success', posts });
-  },
-  async createPost(req, res) {
-    try {
-      const { content, image, user, createdAt } = req.body;
-      if (content || user) {
-        const newPost = await Post.create({
-          content,
-          image,
-          user,
-          createdAt,
-        });
-        res.status(200).json({ status: 'success', newPost });
-      } else {
-        res.status(400).json({ status: 'error', message: '欄位資料填寫不全' });
-      }
-    } catch (err) {
-      res.status(400).json({ status: 'error', message: err.message });
+    handleSuccess(res, '取得資料', posts);
+  }),
+  createPost: handleErrorAsync(async (req, res, next) => {
+    const { content, image, user, createdAt } = req.body;
+    if (content === '' || user === '') {
+      return appError(400, '欄位資料填寫不全', next);
+    } else {
+      const newPost = await Post.create({
+        content,
+        image,
+        user,
+        createdAt,
+      });
+      handleSuccess(res, '新增成功', newPost);
     }
-  },
-  async deletePosts(req, res) {
+  }),
+  deletePosts: handleErrorAsync(async (req, res) => {
     const posts = await Post.deleteMany({});
-    res.status(200).json({ status: 'success', posts });
-  },
-  async deleteOnePost(req, res) {
+    handleSuccess(res, '刪除成功', posts);
+  }),
+  deleteOnePost: handleErrorAsync(async (req, res, next) => {
     const id = req.params.id;
     if (id === null) {
-      res.status(400).json({ status: 'error', message: '查無此 ID' });
-      return;
+      return appError(400, '查無此 ID', next);
     }
-    const posts = await Post.findByIdAndDelete(id);
-    res.status(200).json({ status: 'success', posts });
-  },
-  async editPost(req, res) {
-    try {
-      const { content, image, likes } = req.body;
-      const id = req.params.id;
-      if (id !== null && content) {
-        const posts = await Post.findByIdAndUpdate(id, {
+    const deletePost = await Post.findByIdAndDelete(id);
+    if (!deletePost) {
+      return appError(400, '查無此 ID', next);
+    } else {
+      const posts = await Post.find();
+      handleSuccess(res, '刪除成功', posts);
+    }
+  }),
+  editPost: handleErrorAsync(async (req, res, next) => {
+    const { content, image, likes, user } = req.body;
+    const id = req.params.id;
+    if (!content) {
+      return appError(400, 'content 必填', next);
+    } else {
+      const editPost = await Post.findByIdAndUpdate(
+        id,
+        {
           content,
           image,
           likes,
-        });
-        res.status(200).json({ status: 'success', posts });
+          user,
+        },
+        { new: true }
+      );
+      if (!editPost) {
+        return appError(400, '更新失敗, 查無此 id 或資料錯誤', next);
       } else {
-        res.status(400).json({ status: 'error', message: 'content 必填' });
+        const posts = await Post.find().populate({
+          path: 'user',
+          select: 'name photo ',
+        });
+        handleSuccess(res, '編輯成功', posts);
       }
-    } catch (err) {
-      res.status(400).json({ status: 'error', message: err.message });
     }
-  },
+  }),
 };
 
 module.exports = posts;

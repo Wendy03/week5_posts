@@ -1,47 +1,51 @@
 const User = require('../models/users');
+const appError = require('../service/appError');
+const handleErrorAsync = require('../service/handleErrorAsync');
+const handleSuccess = require('../service/handleSuccess');
 
 const users = {
-  async getUser(req, res) {
+  getUser: handleErrorAsync(async (req, res) => {
     const users = await User.find();
-    res.status(200).json({ status: 'success', users });
-  },
-  async creatUser(req, res) {
-    try {
-      const { name, email, password, photo } = req.body;
-      if (name || email || password) {
-        const newUser = await User.create({
+    handleSuccess(res, '取得使用者資料', users);
+  }),
+  creatUser: handleErrorAsync(async (req, res, next) => {
+    const { name, email, password, photo } = req.body;
+    if (!name || !email || !password) {
+      return appError(400, '欄位資料填寫不全', next);
+    } else {
+      const newUser = await User.create({
+        name,
+        email,
+        password,
+        photo,
+      });
+      handleSuccess(res, '新增使用者', newUser);
+    }
+  }),
+  editUser: handleErrorAsync(async (req, res) => {
+    const { name, email, password, photo } = req.body;
+    const id = req.params.id;
+    if (!name || !password) {
+      return appError(400, '欄位資料填寫不全', next);
+    } else {
+      const editUser = await Post.findByIdAndUpdate(
+        id,
+        {
           name,
           email,
           password,
           photo,
-        });
-        res.status(200).json({ status: 'success', newUser });
+        },
+        { new: true }
+      );
+      if (!editUser) {
+        return appError(400, '編輯失敗', next);
       } else {
-        res.status(400).json({ status: 'error', message: '資料不全' });
+        const users = await User.find();
+        handleSuccess(res, '編輯使用者', users);
       }
-    } catch (err) {
-      res.status(400).json({ status: 'error', message: '資料錯誤' });
     }
-  },
-  async editUser(req, res) {
-    try {
-      const { name, email, password, photo } = req.body;
-      const id = req.params.id;
-      if (name || password) {
-        const user = await Post.findByIdAndUpdate(id, {
-          name,
-          email,
-          password,
-          photo,
-        });
-        res.status(200).json({ status: 'success', user });
-      } else {
-        res.status(400).json({ status: 'error', message: 'content 必填' });
-      }
-    } catch (err) {
-      res.status(400).json({ status: 'error', message: '資料錯誤' });
-    }
-  },
+  }),
 };
 
 module.exports = users;
